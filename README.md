@@ -42,7 +42,7 @@ go run main.go
 ![Gin](https://img.shields.io/badge/Gin-v1.10.0-blue)
 ![Gorm](https://img.shields.io/badge/Gorm-v1.25.12-green)
 ![JWT](https://img.shields.io/badge/JWT-v5.2.2-red)
-![Casbin](https://img.shields.io/badge/Casbin-v2.105.0-orange)
+![Casbin](https://img.shields.io/badge/Casbin-v2.105.0-purple)
 
 [English](#introduction) | 简体中文
 
