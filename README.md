@@ -2,8 +2,9 @@
 
 ![Gin](https://img.shields.io/badge/Gin-v1.10.0-blue)
 ![Gorm](https://img.shields.io/badge/Gorm-v1.25.12-green)
-![JWT](https://img.shields.io/badge/JWT-v5.2.2-red)
+![go-jwt](https://img.shields.io/badge/go-jwt-v5.2.2-red)
 ![Casbin](https://img.shields.io/badge/Casbin-v2.105.0-purple)
+![go-redis](https://img.shields.io/badge/go-redis-v9.8.0-red)
 
 English | [简体中文](#简介)
 
@@ -20,6 +21,7 @@ This is a basic golang project that implements a content management system with 
 
 - Go 1.24+
 - MySQL 5.7+
+- Redis 7.4+
 
 ## Quick Start
 

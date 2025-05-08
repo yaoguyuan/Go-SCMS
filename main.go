@@ -11,7 +11,9 @@ import (
 func init() {
 	initializers.LoadEnvVar()
 	initializers.InitLogger()
+	initializers.InitEmail()
 	initializers.ConnectToDB()
+	initializers.ConnectToRedis()
 	initializers.SyncDB()
 	initializers.InitCasbin()
 	initializers.EnsureAvatarDefault()
@@ -24,6 +26,8 @@ func main() {
 	{
 		apiGroup.POST("/signup", controllers.SignUp) // Log Audit
 		apiGroup.POST("/login", controllers.Login)   // Log Audit
+		apiGroup.POST("/send_code", controllers.SendCode)
+		apiGroup.POST("/verify_code", controllers.VerifyCode)
 	}
 
 	userInterfaceGroup := apiGroup.Group("/ui", middlewares.RequireAuthentication, middlewares.RequireAuthorization)
