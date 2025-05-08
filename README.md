@@ -45,6 +45,7 @@ go run main.go
 ![Gorm](https://img.shields.io/badge/Gorm-v1.25.12-green)
 ![JWT](https://img.shields.io/badge/JWT-v5.2.2-red)
 ![Casbin](https://img.shields.io/badge/Casbin-v2.105.0-purple)
+![Redis](https://img.shields.io/badge/Redis-v9.8.0-red)
 
 [English](#introduction) | 简体中文
 
@@ -61,6 +62,7 @@ go run main.go
 
 - Go 1.24+
 - MySQL 5.7+
+- Redis 7.4+
 
 ## 快速开始
 
