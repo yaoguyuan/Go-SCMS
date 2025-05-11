@@ -7,6 +7,8 @@ type User struct {
 	Password string `redis:"password"`
 	Address  string `redis:"address"`
 	Avatar   string `gorm:"default:'default_avatar.png'" redis:"avatar"`
+	Credits  uint   `gorm:"default:100" redis:"credits"`
+	Subfee   uint   `gorm:"default:0" redis:"subfee"`
 	Role     string `gorm:"default:'user'" redis:"role"`
 }
 

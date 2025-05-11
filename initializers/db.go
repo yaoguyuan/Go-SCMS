@@ -21,7 +21,7 @@ func ConnectToDB() {
 }
 
 func SyncDB() {
-	err := DB.AutoMigrate(&models.User{}, &models.Article{}, &models.Comment{})
+	err := DB.AutoMigrate(&models.User{}, &models.Article{}, &models.Comment{}, &models.Subscribe{}, &models.Discount{})
 	if err != nil {
 		panic("Failed to synchronize database: " + err.Error())
 	}

@@ -25,6 +25,8 @@ func Fetch(c *gin.Context) {
 		"id":      user.(models.User).ID,
 		"email":   user.(models.User).Email,
 		"address": user.(models.User).Address,
+		"credits": user.(models.User).Credits,
+		"subfee":  user.(models.User).Subfee,
 	}
 
 	// Return a success response with the user
@@ -61,8 +63,19 @@ func Modify(c *gin.Context) {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 		Address  string `json:"address"`
+		Subfee   uint   `json:"subfee"`
 	}
 	c.ShouldBind(&body)
+
+	// Validate the email format
+	if body.Email != "" && !utils.IsValidEmail(body.Email) {
+		panic("Invalid email format")
+	}
+
+	// Validate the subfee value
+	if body.Subfee > 100 {
+		panic("Invalid subfee value")
+	}
 
 	// Hash the password
 	var hashedPassword string
@@ -72,7 +85,7 @@ func Modify(c *gin.Context) {
 	}
 
 	// Update the user in the database
-	result := initializers.DB.Where("id = ?", userID).Updates(&models.User{Email: body.Email, Password: hashedPassword, Address: body.Address})
+	result := initializers.DB.Where("id = ?", userID).Updates(&models.User{Email: body.Email, Password: hashedPassword, Address: body.Address, Subfee: body.Subfee})
 	if result.Error != nil || result.RowsAffected == 0 {
 		panic("Failed to update user in the database")
 	}
@@ -148,7 +161,7 @@ func FetchUsers(c *gin.Context) {
 
 	// Get the users from the database
 	var users []map[string]interface{}
-	result = initializers.DB.Model(&models.User{}).Select("id", "email", "address").Offset(params.Offset).Limit(params.PageSize).Find(&users)
+	result = initializers.DB.Model(&models.User{}).Select("id", "email").Offset(params.Offset).Limit(params.PageSize).Find(&users)
 	if result.Error != nil {
 		panic("Failed to get the users from the database")
 	}
@@ -193,6 +206,7 @@ func FetchUser(c *gin.Context) {
 	selectedUser["id"] = user.ID
 	selectedUser["email"] = user.Email
 	selectedUser["address"] = user.Address
+	selectedUser["subfee"] = user.Subfee
 
 	// Return a success response with the user
 	c.JSON(http.StatusOK, gin.H{

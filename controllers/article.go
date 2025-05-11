@@ -4,6 +4,7 @@ import (
 	"auth/initializers"
 	"auth/models"
 	"auth/utils"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -131,6 +132,10 @@ func FetchUserArticles(c *gin.Context) {
 		}
 	}()
 
+	// Get the user off the context
+	curUser, _ := c.Get("user")
+	curUserID := curUser.(models.User).ID
+
 	// Get the id off the path parameter
 	id, ok := c.Params.Get("id")
 	if !ok {
@@ -141,12 +146,20 @@ func FetchUserArticles(c *gin.Context) {
 		panic("Invalid ID: Type error")
 	}
 
+	// First check if the user is allowed to view the articles
+	// (1) Check if the user has subscribed to the author
+	// (2) Check if the user is the author himself/herself
+	result := initializers.DB.Where("reader_id = ? AND author_id = ?", curUserID, userID).First(&models.Subscribe{})
+	if result.RowsAffected == 0 && curUserID != uint(userID) {
+		panic("Not allowed to view the user's articles")
+	}
+
 	// Get the pagination parameters
 	params := utils.GetPaginationParams(c)
 
 	// Get the total number of articles of the user
 	var total int64
-	result := initializers.DB.Model(&models.Article{}).Where("author_id = ? AND status = ?", uint(userID), models.Approved).Count(&total)
+	result = initializers.DB.Model(&models.Article{}).Where("author_id = ? AND status = ?", uint(userID), models.Approved).Count(&total)
 	if result.Error != nil {
 		panic("Failed to get the total number of articles")
 	}
@@ -251,16 +264,32 @@ func PostArticle(c *gin.Context) {
 		panic("Both title and body are required")
 	}
 
-	// Create the article in the database
+	// Prepare the article object
 	article := models.Article{
 		Title:    body.Title,
 		Body:     body.Body,
 		AuthorID: userID,
 		Status:   status,
 	}
-	result = initializers.DB.Create(&article)
-	if result.Error != nil {
-		panic("Failed to post article")
+
+	// Start a transaction to ensure atomicity
+	err := initializers.DB.Transaction(func(tx *gorm.DB) error {
+		// Create the article in the database
+		result = tx.Create(&article)
+		if result.Error != nil {
+			return errors.New("failed to post article")
+		}
+
+		// Add 10 credits to the user
+		result = tx.Model(&models.User{}).Where("id = ?", userID).Update("credits", gorm.Expr("credits + 10"))
+		if result.Error != nil {
+			return errors.New("failed to add credits to the user")
+		}
+
+		return nil
+	})
+	if err != nil {
+		panic(err.Error())
 	}
 
 	// [Prepare the object and data information for logging]
@@ -425,15 +454,31 @@ func PostComment(c *gin.Context) {
 		panic("Both id and content are required")
 	}
 
-	// Create the comment in the database
+	// Prepare the comment object
 	comment := models.Comment{
 		Content:   body.Content,
 		AuthorID:  userID,
 		ArticleID: body.ID,
 	}
-	result = initializers.DB.Create(&comment)
-	if result.Error != nil {
-		panic("Failed to post comment")
+
+	// Start a transaction to ensure atomicity
+	err := initializers.DB.Transaction(func(tx *gorm.DB) error {
+		// Create the comment in the database
+		result = tx.Create(&comment)
+		if result.Error != nil {
+			return errors.New("failed to post comment")
+		}
+
+		// Add 5 credits to the user
+		result = tx.Model(&models.User{}).Where("id = ?", userID).Update("credits", gorm.Expr("credits + 5"))
+		if result.Error != nil {
+			return errors.New("failed to add credits to the user")
+		}
+
+		return nil
+	})
+	if err != nil {
+		panic(err.Error())
 	}
 
 	// [Prepare the object and data information for logging]

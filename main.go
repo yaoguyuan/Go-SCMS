@@ -42,7 +42,11 @@ func main() {
 		// *****************************************************
 		userInterfaceGroup.GET("/avatar/:id", controllers.GetAvatar)
 		userInterfaceGroup.POST("/avatar", controllers.UploadAvatar)
-		userInterfaceGroup.GET("/articles", controllers.FetchArticles)
+		// userInterfaceGroup.GET("/articles", controllers.FetchArticles)
+		userInterfaceGroup.POST("/subscribe", controllers.Subscribe)
+		userInterfaceGroup.POST("/seckill", controllers.Seckill)
+		userInterfaceGroup.GET("/discounts/:id", controllers.FetchUserDiscounts)
+		userInterfaceGroup.POST("/discounts", controllers.PostDiscount)
 		userInterfaceGroup.GET("/articles/:id", controllers.FetchUserArticles)
 		userInterfaceGroup.POST("/articles", controllers.PostArticle)     // Log Audit
 		userInterfaceGroup.DELETE("/articles", controllers.RemoveArticle) // Log Audit
