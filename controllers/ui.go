@@ -4,11 +4,13 @@ import (
 	"auth/initializers"
 	"auth/models"
 	"auth/utils"
+	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -75,6 +77,12 @@ func Modify(c *gin.Context) {
 		panic("Failed to update user in the database")
 	}
 
+	// Remove the Redis cache for the user
+	err := initializers.RDB.Del(initializers.RDB_CTX, utils.CACHE_USER_KEY_PREFIX+strconv.Itoa(int(userID))).Err()
+	if err != nil {
+		panic("Failed to remove user from Redis cache")
+	}
+
 	// [Get the updated user from the database]
 	var new_user models.User
 	initializers.DB.Where("id = ?", userID).First(&new_user)
@@ -89,6 +97,9 @@ func Modify(c *gin.Context) {
 
 	// Update the role inheritance rule in Casbin
 	initializers.E.UpdateGroupingPolicy([]string{userEmail, userRole}, []string{body.Email, userRole})
+
+	// Reload the policy from the database
+	initializers.E.LoadPolicy()
 
 	// [Prepare the object and data information for logging]
 	objInfo := utils.ObjInfo{
@@ -171,19 +182,69 @@ func FetchUser(c *gin.Context) {
 		panic("Invalid ID: Type error")
 	}
 
-	// Get the user from the database
-	var user map[string]interface{}
-	result := initializers.DB.Model(&models.User{}).Select("id", "email", "address").Where("id = ?", uint(userID)).First(&user)
-	if result.Error != nil {
-		panic("Invalid ID: User not found")
+	// Look up the user in the database
+	user, err := fetchUser(userID)
+	if err != nil {
+		panic(err.Error())
 	}
+
+	// Filter the user information
+	selectedUser := make(map[string]interface{})
+	selectedUser["id"] = user.ID
+	selectedUser["email"] = user.Email
+	selectedUser["address"] = user.Address
 
 	// Return a success response with the user
 	c.JSON(http.StatusOK, gin.H{
 		"message": "User fetched successfully",
-		"user":    user,
+		"user":    selectedUser,
 	})
 }
+
+// ************** Using Redis for Caching **************
+// *** Solving Cache Penetration and Cache Breakdown ***
+func fetchUser(userID int) (*models.User, error) {
+	var user models.User
+	// Convert the user ID to string for Redis key
+	idStr := strconv.Itoa(userID)
+	// Check if the user is non-existent and holds an empty value in Redis
+	if initializers.RDB.HExists(initializers.RDB_CTX, utils.CACHE_USER_KEY_PREFIX+idStr, "is_empty").Val() {
+		return nil, errors.New("user not found")
+	}
+	// First-check if the user exists in the Redis cache
+	initializers.RDB.HGetAll(initializers.RDB_CTX, utils.CACHE_USER_KEY_PREFIX+idStr).Scan(&user)
+	if user == (models.User{}) {
+		// Cache Breakdown Solution
+		// Try lock the mutex
+		if !utils.TryLock(utils.MUTEX_USER_KEY_PREFIX+idStr, utils.MUTEX_USER_EXPIRE_TIME) {
+			// If the lock fails, wait for a while and try again
+			time.Sleep(50 * time.Millisecond)
+			return fetchUser(userID)
+		}
+		// Double-check if the user exists in the Redis cache
+		initializers.RDB.HGetAll(initializers.RDB_CTX, utils.CACHE_USER_KEY_PREFIX+idStr).Scan(&user)
+		if user == (models.User{}) {
+			// If the user is still not found, then fetch it from the database
+			time.Sleep(100 * time.Millisecond) // Simulate a delay
+			result := initializers.DB.Debug().First(&user, uint(userID))
+			if result.Error != nil {
+				// Cache Penetration Solution
+				// Cache the empty result in Redis for a short time
+				initializers.RDB.HSet(initializers.RDB_CTX, utils.CACHE_USER_KEY_PREFIX+idStr, "is_empty", "1")
+				initializers.RDB.Expire(initializers.RDB_CTX, utils.CACHE_USER_KEY_PREFIX+idStr, utils.CACHE_NULL_EXPIRE_TIME)
+				return nil, errors.New("user not found")
+			}
+			// Finally, cache the user in Redis and set an expiration time
+			initializers.RDB.HSet(initializers.RDB_CTX, utils.CACHE_USER_KEY_PREFIX+idStr, &user)
+			initializers.RDB.Expire(initializers.RDB_CTX, utils.CACHE_USER_KEY_PREFIX+idStr, utils.CACHE_USER_EXPIRE_TIME)
+		}
+		// Unlock the mutex
+		utils.Unlock(utils.MUTEX_USER_KEY_PREFIX + idStr)
+	}
+	return &user, nil
+}
+
+// *****************************************************
 
 // GetAvatar retrieves a user's avatar.
 func GetAvatar(c *gin.Context) {

@@ -82,6 +82,12 @@ func DelUser(c *gin.Context) {
 		panic("Failed to delete user from the database")
 	}
 
+	// Remove the Redis cache for the user
+	err = initializers.RDB.Del(initializers.RDB_CTX, utils.CACHE_USER_KEY_PREFIX+strconv.Itoa(userID)).Err()
+	if err != nil {
+		panic("Failed to remove user from Redis cache")
+	}
+
 	// Delete the user's articles from the database
 	result = initializers.DB.Where("user_id = ?", uint(userID)).Delete(&models.Article{})
 	if result.Error != nil {

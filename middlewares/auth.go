@@ -3,7 +3,9 @@ package middlewares
 import (
 	"auth/initializers"
 	"auth/models"
+	"auth/utils"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -30,11 +32,22 @@ func RequireAuthentication(c *gin.Context) {
 
 	// Find the user with the token
 	id := uint(token.Claims.(jwt.MapClaims)["sub"].(float64)) // JWT will parse a figure to float64
+
+	// First check if the user exists in the Redis cache
 	var user models.User
-	result := initializers.DB.First(&user, id)
-	if result.Error != nil {
-		c.AbortWithStatus(http.StatusUnauthorized)
-		return
+	// Convert the user ID to string for Redis key
+	idStr := strconv.Itoa(int(id))
+	initializers.RDB.HGetAll(initializers.RDB_CTX, utils.CACHE_USER_KEY_PREFIX+idStr).Scan(&user)
+	if user == (models.User{}) {
+		// If the user is not in the cache, then fetch it from the database
+		result := initializers.DB.First(&user, id)
+		if result.Error != nil {
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+		// Finally, cache the user in Redis and set an expiration time
+		initializers.RDB.HSet(initializers.RDB_CTX, utils.CACHE_USER_KEY_PREFIX+idStr, &user)
+		initializers.RDB.Expire(initializers.RDB_CTX, utils.CACHE_USER_KEY_PREFIX+idStr, utils.CACHE_USER_EXPIRE_TIME)
 	}
 
 	// Attach the user to the context

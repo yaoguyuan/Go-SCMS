@@ -1,2 +1,50 @@
-{"time":"2025-05-08T17:27:52.2866718+08:00","level":"INFO","msg":"User logged in successfully","ip":"127.0.0.1","email":"Admin@gmail.com"}
-{"time":"2025-05-08T17:30:49.0037707+08:00","level":"INFO","msg":"User signed up successfully","ip":"127.0.0.1","email":"yaogavin70@gmail.com"}
+{
+    "time": "2025-05-09T11:36:02.5459861+08:00",
+    "level": "INFO",
+    "msg": "User modified successfully",
+    "sub": {
+        "ip": "127.0.0.1",
+        "id": 1,
+        "role": "user"
+    },
+    "obj": {
+        "op": "UPDATE",
+        "table": "users",
+        "id": 1
+    },
+    "data": {
+        "old_data": {
+            "address": "",
+            "email": "yaogavin70@gmail.com",
+            "password": "*******"
+        },
+        "new_data": {
+            "address": "Wuhan",
+            "email": "yaogavin70@gmail.com",
+            "password": "*******"
+        }
+    }
+}
+{
+    "time": "2025-05-09T11:36:28.2224755+08:00",
+    "level": "WARN",
+    "msg": "Authorization Failed",
+    "email": "yaogavin70@gmail.com",
+    "path": "/api/ui/myself",
+    "method": "GET"
+}
+{
+    "time": "2025-05-09T11:36:42.8631857+08:00",
+    "level": "WARN",
+    "msg": "Authorization Failed",
+    "email": "yaogavin70@gmail.com",
+    "path": "/api/ui/myself",
+    "method": "GET"
+}
+{"time":"2025-05-09T11:45:36.3886526+08:00","level":"INFO","msg":"User modified successfully","sub":{"ip":"127.0.0.1","id":1,"role":"user"},"obj":{"op":"UPDATE","table":"users","id":1},"data":{"old_data":{"address":"Wuhan","email":"yaogavin70@gmail.com","password":"*******"},"new_data":{"address":"Huzhou","email":"yaogavin70@gmail.com","password":"*******"}}}
+{"time":"2025-05-09T11:46:02.2143164+08:00","level":"WARN","msg":"Authorization Failed","email":"yaogavin70@gmail.com","path":"/api/ui/myself","method":"GET"}
+{"time":"2025-05-09T11:48:24.0457476+08:00","level":"INFO","msg":"User modified successfully","sub":{"ip":"127.0.0.1","id":1,"role":"user"},"obj":{"op":"UPDATE","table":"users","id":1},"data":{"old_data":{"address":"Huzhou","email":"yaogavin70@gmail.com","password":"*******"},"new_data":{"address":"Wuhan","email":"yaogavin70@gmail.com","password":"*******"}}}
+{"time":"2025-05-09T15:07:34.6808752+08:00","level":"ERROR","msg":"SignUp failed","error":"Failed to get email and password off the request body","ip":"127.0.0.1","params":{"email":"yaogavin70@gmail.com","pasword":"ygy20030609"}}
+{"time":"2025-05-09T15:07:46.4708629+08:00","level":"INFO","msg":"User signed up successfully","ip":"127.0.0.1","email":"yaogavin70@gmail.com"}
+{"time":"2025-05-09T15:08:16.0893985+08:00","level":"INFO","msg":"User logged in successfully","ip":"127.0.0.1","email":"yaogavin70@gmail.com"}
+{"time":"2025-05-09T15:09:48.4280495+08:00","level":"INFO","msg":"User modified successfully","sub":{"ip":"127.0.0.1","id":1,"role":"user"},"obj":{"op":"UPDATE","table":"users","id":1},"data":{"old_data":{"address":"","email":"yaogavin70@gmail.com","password":"*******"},"new_data":{"address":"Wuhan","email":"yaogavin70@gmail.com","password":"*******"}}}

@@ -26,8 +26,10 @@ func main() {
 	{
 		apiGroup.POST("/signup", controllers.SignUp) // Log Audit
 		apiGroup.POST("/login", controllers.Login)   // Log Audit
+		// *** Using Redis for Session Management ***
 		apiGroup.POST("/send_code", controllers.SendCode)
 		apiGroup.POST("/verify_code", controllers.VerifyCode)
+		// ******************************************
 	}
 
 	userInterfaceGroup := apiGroup.Group("/ui", middlewares.RequireAuthentication, middlewares.RequireAuthorization)
@@ -35,7 +37,9 @@ func main() {
 		userInterfaceGroup.GET("/myself", controllers.Fetch)
 		userInterfaceGroup.PUT("/myself", controllers.Modify) // Log Audit
 		userInterfaceGroup.GET("/users", controllers.FetchUsers)
+		// ************** Using Redis for Caching **************
 		userInterfaceGroup.GET("/users/:id", controllers.FetchUser)
+		// *****************************************************
 		userInterfaceGroup.GET("/avatar/:id", controllers.GetAvatar)
 		userInterfaceGroup.POST("/avatar", controllers.UploadAvatar)
 		userInterfaceGroup.GET("/articles", controllers.FetchArticles)
