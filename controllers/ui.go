@@ -91,7 +91,7 @@ func Modify(c *gin.Context) {
 	}
 
 	// Remove the Redis cache for the user
-	err := initializers.RDB.Del(initializers.RDB_CTX, utils.CACHE_USER_KEY_PREFIX+strconv.Itoa(int(userID))).Err()
+	err := initializers.RDB.Del(initializers.RDB_CTX, utils.RedisConstants.CACHE_USER_KEY_PREFIX+strconv.Itoa(int(userID))).Err()
 	if err != nil {
 		panic("Failed to remove user from Redis cache")
 	}
@@ -222,21 +222,21 @@ func fetchUser(userID int) (*models.User, error) {
 	// Convert the user ID to string for Redis key
 	idStr := strconv.Itoa(userID)
 	// Check if the user is non-existent and holds an empty value in Redis
-	if initializers.RDB.HExists(initializers.RDB_CTX, utils.CACHE_USER_KEY_PREFIX+idStr, "is_empty").Val() {
+	if initializers.RDB.HExists(initializers.RDB_CTX, utils.RedisConstants.CACHE_USER_KEY_PREFIX+idStr, "is_empty").Val() {
 		return nil, errors.New("user not found")
 	}
 	// First-check if the user exists in the Redis cache
-	initializers.RDB.HGetAll(initializers.RDB_CTX, utils.CACHE_USER_KEY_PREFIX+idStr).Scan(&user)
+	initializers.RDB.HGetAll(initializers.RDB_CTX, utils.RedisConstants.CACHE_USER_KEY_PREFIX+idStr).Scan(&user)
 	if user == (models.User{}) {
 		// Cache Breakdown Solution
 		// Try lock the mutex
-		if !utils.TryLock(utils.MUTEX_USER_KEY_PREFIX+idStr, utils.MUTEX_USER_EXPIRE_TIME) {
+		if !utils.SimpleTryLock(utils.RedisConstants.MUTEX_USER_KEY_PREFIX+idStr, utils.RedisConstants.MUTEX_USER_EXPIRE_TIME) {
 			// If the lock fails, wait for a while and try again
 			time.Sleep(50 * time.Millisecond)
 			return fetchUser(userID)
 		}
 		// Double-check if the user exists in the Redis cache
-		initializers.RDB.HGetAll(initializers.RDB_CTX, utils.CACHE_USER_KEY_PREFIX+idStr).Scan(&user)
+		initializers.RDB.HGetAll(initializers.RDB_CTX, utils.RedisConstants.CACHE_USER_KEY_PREFIX+idStr).Scan(&user)
 		if user == (models.User{}) {
 			// If the user is still not found, then fetch it from the database
 			time.Sleep(100 * time.Millisecond) // Simulate a delay
@@ -244,16 +244,16 @@ func fetchUser(userID int) (*models.User, error) {
 			if result.Error != nil {
 				// Cache Penetration Solution
 				// Cache the empty result in Redis for a short time
-				initializers.RDB.HSet(initializers.RDB_CTX, utils.CACHE_USER_KEY_PREFIX+idStr, "is_empty", "1")
-				initializers.RDB.Expire(initializers.RDB_CTX, utils.CACHE_USER_KEY_PREFIX+idStr, utils.CACHE_NULL_EXPIRE_TIME)
+				initializers.RDB.HSet(initializers.RDB_CTX, utils.RedisConstants.CACHE_USER_KEY_PREFIX+idStr, "is_empty", "1")
+				initializers.RDB.Expire(initializers.RDB_CTX, utils.RedisConstants.CACHE_USER_KEY_PREFIX+idStr, utils.RedisConstants.CACHE_NULL_EXPIRE_TIME)
 				return nil, errors.New("user not found")
 			}
 			// Finally, cache the user in Redis and set an expiration time
-			initializers.RDB.HSet(initializers.RDB_CTX, utils.CACHE_USER_KEY_PREFIX+idStr, &user)
-			initializers.RDB.Expire(initializers.RDB_CTX, utils.CACHE_USER_KEY_PREFIX+idStr, utils.CACHE_USER_EXPIRE_TIME)
+			initializers.RDB.HSet(initializers.RDB_CTX, utils.RedisConstants.CACHE_USER_KEY_PREFIX+idStr, &user)
+			initializers.RDB.Expire(initializers.RDB_CTX, utils.RedisConstants.CACHE_USER_KEY_PREFIX+idStr, utils.RedisConstants.CACHE_USER_EXPIRE_TIME)
 		}
 		// Unlock the mutex
-		utils.Unlock(utils.MUTEX_USER_KEY_PREFIX + idStr)
+		utils.SimpleUnlock(utils.RedisConstants.MUTEX_USER_KEY_PREFIX + idStr)
 	}
 	return &user, nil
 }

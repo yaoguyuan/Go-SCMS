@@ -140,7 +140,7 @@ func SendCode(c *gin.Context) {
 	code := utils.GenerateVerificationCode(6)
 
 	// Save the verification code to Redis
-	err := initializers.RDB.Set(initializers.RDB_CTX, utils.LOGIN_CODE_KEY_PREFIX+body.Email, code, utils.LOGIN_CODE_EXPIRE_TIME).Err()
+	err := initializers.RDB.Set(initializers.RDB_CTX, utils.RedisConstants.LOGIN_CODE_KEY_PREFIX+body.Email, code, utils.RedisConstants.LOGIN_CODE_EXPIRE_TIME).Err()
 	if err != nil {
 		panic("Failed to save verification code to Redis")
 	}
@@ -176,7 +176,7 @@ func VerifyCode(c *gin.Context) {
 	}
 
 	// Fetch the cached verification code from Redis
-	cachedCode, err := initializers.RDB.Get(initializers.RDB_CTX, utils.LOGIN_CODE_KEY_PREFIX+body.Email).Result()
+	cachedCode, err := initializers.RDB.Get(initializers.RDB_CTX, utils.RedisConstants.LOGIN_CODE_KEY_PREFIX+body.Email).Result()
 	if err != nil {
 		panic("Login failed: verification code expired or not sent")
 	}

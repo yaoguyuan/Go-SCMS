@@ -4,6 +4,7 @@ import (
 	"auth/controllers"
 	"auth/initializers"
 	"auth/middlewares"
+	"auth/tasks"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,10 +18,12 @@ func init() {
 	initializers.SyncDB()
 	initializers.InitCasbin()
 	initializers.EnsureAvatarDefault()
+	tasks.InitSeckillProcessor()
 }
 
 func main() {
 	r := gin.Default()
+	// r.Use(middlewares.RequestID) // Generate a unique request ID for each request
 
 	apiGroup := r.Group("/api")
 	{
@@ -44,7 +47,9 @@ func main() {
 		userInterfaceGroup.POST("/avatar", controllers.UploadAvatar)
 		// userInterfaceGroup.GET("/articles", controllers.FetchArticles)
 		userInterfaceGroup.POST("/subscribe", controllers.Subscribe)
+		// ************** Using Redis for Seckill **************
 		userInterfaceGroup.POST("/seckill", controllers.Seckill)
+		// *****************************************************
 		userInterfaceGroup.GET("/discounts/:id", controllers.FetchUserDiscounts)
 		userInterfaceGroup.POST("/discounts", controllers.PostDiscount)
 		userInterfaceGroup.GET("/articles/:id", controllers.FetchUserArticles)

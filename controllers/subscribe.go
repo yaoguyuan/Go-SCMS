@@ -3,6 +3,7 @@ package controllers
 import (
 	"auth/initializers"
 	"auth/models"
+	"auth/tasks"
 	"auth/utils"
 	"errors"
 	"net/http"
@@ -178,17 +179,23 @@ func PostDiscount(c *gin.Context) {
 	beginTime := time.Now()
 	endTime := time.Now().Add(time.Duration(body.Duration) * time.Hour)
 	// (3) Create the discount
-	result := initializers.DB.Create(&models.Discount{
+	discount := models.Discount{
 		AuthorID:  userID,
 		Discount:  discountPrice,
 		Stock:     body.Stock,
 		BeginTime: beginTime,
 		EndTime:   endTime,
-		Status:    models.Pending,
-	})
+		Status:    models.Approved,
+	}
+	result := initializers.DB.Create(&discount)
 	if result.Error != nil {
 		panic("Failed to create a discount")
 	}
+
+	// Create a Redis key for the discount stock
+	key := utils.RedisConstants.SECKILL_STOCK_KEY_PREFIX + strconv.Itoa(int(discount.ID))
+	ttl := endTime.Sub(beginTime)
+	initializers.RDB.Set(initializers.RDB_CTX, key, body.Stock, ttl)
 
 	// Return a success response
 	c.JSON(http.StatusOK, gin.H{
@@ -223,7 +230,7 @@ func Seckill(c *gin.Context) {
 		panic("Failed to find the discount")
 	}
 
-	// Call function seckill
+	// Call the seckill function
 	err := seckill(reader, discount)
 	if err != nil {
 		panic(err.Error())
@@ -235,18 +242,50 @@ func Seckill(c *gin.Context) {
 	})
 }
 
+// *** Using Redis for Seckill Operation ***
+func seckill(reader models.User, discount models.Discount) error {
+	// (1) Check if the reader is the author himself/herself
+	if reader.ID == discount.AuthorID {
+		return errors.New("failed to purchase the discount: you cannot purchase your own discount")
+	}
+	// (2) Check if the reader has enough credits to purchase the discount
+	if reader.Credits < discount.Discount {
+		return errors.New("failed to purchase the discount: you do not have enough credits")
+	}
+
+	// Call SeckillScript to perform the seckill operation atomically
+	ret, _ := utils.SeckillScript.Run(initializers.RDB_CTX, initializers.RDB, []string{}, discount.ID, reader.ID).Int()
+	if ret == 1 {
+		return errors.New("failed to purchase the discount: already subscribed")
+	} else if ret == 2 {
+		return errors.New("failed to purchase the discount: not within valid time range")
+	} else if ret == 3 {
+		return errors.New("failed to purchase the discount: no stock available")
+	}
+
+	// Asynchronously process the seckill task
+	tasks.AddSeckillTask(reader.ID, discount.AuthorID, discount.ID, discount.Discount)
+
+	return nil
+}
+
+// *****************************************
+
+/*
 // **************** Using Optimistic Lock to prevent overselling *****************
 // *** Using Pessimistic Lock to prevent one person from buying multiple times ***
-func seckill(reader models.User, discount models.Discount) error {
+func seckill(reader models.User, discount models.Discount, requestID string) error {
 	// (1) Check if the reader is the author himself/herself
 	if reader.ID == discount.AuthorID {
 		return errors.New("failed to purchase the discount: you cannot purchase your own discount")
 	}
 
 	// 使用悲观锁实现一人一单
-	pessimisticLock := utils.NewPairLock()
-	pessimisticLock.Lock("sub", reader.ID, discount.AuthorID)
-	defer pessimisticLock.Unlock("sub", reader.ID, discount.AuthorID)
+	key := utils.RedisConstants.LOCK_ORDER_KEY_PREFIX + strconv.Itoa(int(reader.ID)) + "-" + strconv.Itoa(int(discount.ID))
+	if !utils.TryLock(key, requestID, utils.RedisConstants.LOCK_ORDER_EXPIRE_TIME) {
+		return errors.New("failed to purchase the discount: you are already processing a purchase")
+	}
+	defer utils.Unlock(key, requestID)
 
 	// (2) Check if the reader has already subscribed to the author
 	result := initializers.DB.Where("reader_id = ? AND author_id = ?", reader.ID, discount.AuthorID).First(&models.Subscribe{})
@@ -297,7 +336,9 @@ func seckill(reader models.User, discount models.Discount) error {
 
 		return nil
 	})
+
 	return err
 }
 
 // *******************************************************************************
+*/

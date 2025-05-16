@@ -83,7 +83,7 @@ func DelUser(c *gin.Context) {
 	}
 
 	// Remove the Redis cache for the user
-	err = initializers.RDB.Del(initializers.RDB_CTX, utils.CACHE_USER_KEY_PREFIX+strconv.Itoa(userID)).Err()
+	err = initializers.RDB.Del(initializers.RDB_CTX, utils.RedisConstants.CACHE_USER_KEY_PREFIX+strconv.Itoa(userID)).Err()
 	if err != nil {
 		panic("Failed to remove user from Redis cache")
 	}

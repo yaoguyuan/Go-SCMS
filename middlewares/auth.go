@@ -11,6 +11,14 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// RequestID is a middleware that generates a unique request ID for each request.
+// func RequestID(c *gin.Context) {
+// 	id := uuid.New().String()
+// 	c.Set("request_id", id)
+// 	c.Writer.Header().Set("X-Request-ID", id)
+// 	c.Next()
+// }
+
 // Using JWT for authentication
 func RequireAuthentication(c *gin.Context) {
 	// Get JWT off the cookie
@@ -37,7 +45,7 @@ func RequireAuthentication(c *gin.Context) {
 	var user models.User
 	// Convert the user ID to string for Redis key
 	idStr := strconv.Itoa(int(id))
-	initializers.RDB.HGetAll(initializers.RDB_CTX, utils.CACHE_USER_KEY_PREFIX+idStr).Scan(&user)
+	initializers.RDB.HGetAll(initializers.RDB_CTX, utils.RedisConstants.CACHE_USER_KEY_PREFIX+idStr).Scan(&user)
 	if user == (models.User{}) {
 		// If the user is not in the cache, then fetch it from the database
 		result := initializers.DB.First(&user, id)
@@ -46,8 +54,8 @@ func RequireAuthentication(c *gin.Context) {
 			return
 		}
 		// Finally, cache the user in Redis and set an expiration time
-		initializers.RDB.HSet(initializers.RDB_CTX, utils.CACHE_USER_KEY_PREFIX+idStr, &user)
-		initializers.RDB.Expire(initializers.RDB_CTX, utils.CACHE_USER_KEY_PREFIX+idStr, utils.CACHE_USER_EXPIRE_TIME)
+		initializers.RDB.HSet(initializers.RDB_CTX, utils.RedisConstants.CACHE_USER_KEY_PREFIX+idStr, &user)
+		initializers.RDB.Expire(initializers.RDB_CTX, utils.RedisConstants.CACHE_USER_KEY_PREFIX+idStr, utils.RedisConstants.CACHE_USER_EXPIRE_TIME)
 	}
 
 	// Attach the user to the context
