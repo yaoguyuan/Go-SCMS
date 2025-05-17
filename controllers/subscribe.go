@@ -3,7 +3,6 @@ package controllers
 import (
 	"auth/initializers"
 	"auth/models"
-	"auth/tasks"
 	"auth/utils"
 	"errors"
 	"net/http"
@@ -254,7 +253,8 @@ func seckill(reader models.User, discount models.Discount) error {
 	}
 
 	// Call SeckillScript to perform the seckill operation atomically
-	ret, _ := utils.SeckillScript.Run(initializers.RDB_CTX, initializers.RDB, []string{}, discount.ID, reader.ID).Int()
+	// ret, _ := utils.SeckillScript.Run(initializers.RDB_CTX, initializers.RDB, []string{}, discount.ID, reader.ID).Int()
+	ret, _ := utils.SeckillScript.Run(initializers.RDB_CTX, initializers.RDB, []string{}, reader.ID, discount.AuthorID, discount.ID, discount.Discount).Int()
 	if ret == 1 {
 		return errors.New("failed to purchase the discount: already subscribed")
 	} else if ret == 2 {
@@ -264,7 +264,7 @@ func seckill(reader models.User, discount models.Discount) error {
 	}
 
 	// Asynchronously process the seckill task
-	tasks.AddSeckillTask(reader.ID, discount.AuthorID, discount.ID, discount.Discount)
+	// tasks.AddSeckillTask(reader.ID, discount.AuthorID, discount.ID, discount.Discount)
 
 	return nil
 }

@@ -3,9 +3,12 @@ package tasks
 import (
 	"auth/initializers"
 	"auth/models"
+	"auth/utils"
 	"errors"
 	"fmt"
+	"time"
 
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
@@ -17,19 +20,43 @@ type SeckillTask struct {
 	Credits    uint
 }
 
-// SeckillTaskQueue is a channel used to queue seckill tasks for processing.
-var SeckillTaskQueue = make(chan SeckillTask, 100)
-
 // InitSeckillProcessor initializes the seckill task processor.
 func InitSeckillProcessor() {
 	go func() {
-		for task := range SeckillTaskQueue {
-			err := processSeckillTask(task)
-			if err != nil {
-				// Here you would implement the logic to handle the error.
-				// This could include logging the error, or retrying the task.
+		for {
+			// (1) Read a new task
+			// XREADGROUP GROUP g1 c1 COUNT 1 BLOCK 2000 STREAMS stream.orders >
+			result, err := initializers.RDB.XReadGroup(initializers.RDB_CTX, &redis.XReadGroupArgs{
+				Group:    "g1",
+				Consumer: "c1",
+				Count:    1,
+				Block:    2000 * time.Millisecond,
+				Streams:  []string{"stream.orders", ">"},
+			}).Result()
+			// If no new task is available, continue to the next iteration
+			if err == redis.Nil {
+				continue
+			}
 
-				fmt.Printf("Failed to process seckill task for ReaderID %d, AuthorID %d, DiscountID %d: %v", task.ReaderID, task.AuthorID, task.DiscountID, err)
+			// (2) Parse the task
+			taskID := result[0].Messages[0].ID
+			taskData := result[0].Messages[0].Values
+			task := SeckillTask{
+				ReaderID:   utils.StrToUint(taskData["readerID"].(string)),
+				AuthorID:   utils.StrToUint(taskData["authorID"].(string)),
+				DiscountID: utils.StrToUint(taskData["discountID"].(string)),
+				Credits:    utils.StrToUint(taskData["credits"].(string)),
+			}
+
+			// (3) Process the task
+			if err := processSeckillTask(task); err != nil {
+				// If an error occurs, log it and process the task again in the pending-list
+				fmt.Printf("Error processing task %v: %v\n", task, err)
+				handlePendingList()
+			} else {
+				// If no error occurs, acknowledge the task to remove it from the pending-list
+				// XACK stream.orders g1 <taskID>
+				initializers.RDB.XAck(initializers.RDB_CTX, "stream.orders", "g1", taskID)
 			}
 		}
 	}()
@@ -73,12 +100,43 @@ func processSeckillTask(task SeckillTask) error {
 	return err
 }
 
-// AddSeckillTask adds a seckill task to the queue.
-func AddSeckillTask(readerID, authorID, discountID, credits uint) {
-	SeckillTaskQueue <- SeckillTask{
-		ReaderID:   readerID,
-		AuthorID:   authorID,
-		DiscountID: discountID,
-		Credits:    credits,
+// handlePendingList handles the pending list.
+func handlePendingList() {
+	// Here you would implement the logic to handle the pending list.
+	// This should be logically similar to the task processor.
+
+	for {
+		// (1) Read a new task
+		// XREADGROUP GROUP g1 c1 COUNT 1 STREAMS stream.orders 0
+		result, err := initializers.RDB.XReadGroup(initializers.RDB_CTX, &redis.XReadGroupArgs{
+			Group:    "g1",
+			Consumer: "c1",
+			Count:    1,
+			Streams:  []string{"stream.orders", "0"},
+		}).Result()
+		// If no task is in the pending-list, break the loop
+		if err == redis.Nil {
+			break
+		}
+
+		// (2) Parse the task
+		taskID := result[0].Messages[0].ID
+		taskData := result[0].Messages[0].Values
+		task := SeckillTask{
+			ReaderID:   utils.StrToUint(taskData["readerID"].(string)),
+			AuthorID:   utils.StrToUint(taskData["authorID"].(string)),
+			DiscountID: utils.StrToUint(taskData["discountID"].(string)),
+			Credits:    utils.StrToUint(taskData["credits"].(string)),
+		}
+
+		// (3) Process the task
+		if err := processSeckillTask(task); err != nil {
+			// If an error occurs, log it and process the task again in the pending-list
+			fmt.Printf("Error processing task %v: %v\n", task, err)
+		} else {
+			// If no error occurs, acknowledge the task to remove it from the pending-list
+			// XACK stream.orders g1 <taskID>
+			initializers.RDB.XAck(initializers.RDB_CTX, "stream.orders", "g1", taskID)
+		}
 	}
 }

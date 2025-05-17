@@ -1,5 +1,7 @@
 package utils
 
+import "strconv"
+
 // BlurMap is a filter that replace the value of the given keys in the map with asterisks (*).
 func BlurMap(m map[string]interface{}, s ...string) {
 	for _, key := range s {
@@ -12,4 +14,22 @@ func BlurMap(m map[string]interface{}, s ...string) {
 // BlurStr is a filter that replace the string with asterisks (*).
 func BlurStr() string {
 	return "*******"
+}
+
+// StrToInt converts a string to an integer, returning 0 if the conversion fails.
+func StrToInt(s string) int {
+	result, err := strconv.Atoi(s)
+	if err != nil {
+		return 0
+	}
+	return result
+}
+
+// StrToUint converts a string to an unsigned integer, returning 0 if the conversion fails.
+func StrToUint(s string) uint {
+	result := StrToInt(s)
+	if result < 0 {
+		return 0
+	}
+	return uint(result)
 }
