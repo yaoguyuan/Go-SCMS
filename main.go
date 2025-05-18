@@ -39,13 +39,17 @@ func main() {
 	{
 		userInterfaceGroup.GET("/myself", controllers.Fetch)
 		userInterfaceGroup.PUT("/myself", controllers.Modify) // Log Audit
+		// ************** Using Redis for Sign in **************
+		userInterfaceGroup.POST("/signin", controllers.SignIn)
+		userInterfaceGroup.GET("/signin/count", controllers.SignInCount)
+		userInterfaceGroup.POST("/signin/award", controllers.SignInAward)
+		// *****************************************************
 		userInterfaceGroup.GET("/users", controllers.FetchUsers)
 		// ************** Using Redis for Caching **************
 		userInterfaceGroup.GET("/users/:id", controllers.FetchUser)
 		// *****************************************************
 		userInterfaceGroup.GET("/avatar/:id", controllers.GetAvatar)
 		userInterfaceGroup.POST("/avatar", controllers.UploadAvatar)
-		// userInterfaceGroup.GET("/articles", controllers.FetchArticles)
 		userInterfaceGroup.POST("/subscribe", controllers.Subscribe)
 		// ************** Using Redis for Seckill **************
 		userInterfaceGroup.POST("/seckill", controllers.Seckill)
@@ -55,7 +59,9 @@ func main() {
 		userInterfaceGroup.GET("/articles/:id", controllers.FetchUserArticles)
 		userInterfaceGroup.POST("/articles", controllers.PostArticle)     // Log Audit
 		userInterfaceGroup.DELETE("/articles", controllers.RemoveArticle) // Log Audit
+		// ************** Using Redis for Leaderboard **************
 		userInterfaceGroup.POST("/articles/like", controllers.LikeArticle)
+		// *********************************************************
 		userInterfaceGroup.POST("/articles/comment", controllers.PostComment)     // Log Audit
 		userInterfaceGroup.DELETE("/articles/comment", controllers.RemoveComment) // Log Audit
 	}

@@ -5,6 +5,8 @@ import (
 	"auth/models"
 	"auth/utils"
 	"errors"
+	"fmt"
+	"math/bits"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -15,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 // Fetch retrieves the current user's information.
@@ -139,6 +142,126 @@ func Modify(c *gin.Context) {
 		"message": message,
 	})
 	initializers.LOGGER.Info(message, "sub", utils.GetSubInfo(c), "obj", objInfo, "data", dataInfo)
+}
+
+// SignIn 用于记录当前用户在当天完成签到
+func SignIn(c *gin.Context) {
+	defer func() {
+		if err := recover(); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err})
+		}
+	}()
+
+	// Get the user off the context
+	user, _ := c.Get("user")
+	userID := user.(models.User).ID
+
+	// Get the date
+	currentYear, currentMonth, currentDay := time.Now().Date()
+
+	// Using Redis Bitmap to record the sign-in status
+	// (1) Set the key
+	keyPrefix := utils.RedisConstants.SIGN_IN_KEY_PREFIX
+	keySuffix := fmt.Sprintf(":%d%02d", currentYear, currentMonth)
+	key := keyPrefix + strconv.Itoa(int(userID)) + keySuffix
+	// (2) Set the bit
+	if err := initializers.RDB.SetBit(initializers.RDB_CTX, key, int64(currentDay)-1, 1).Err(); err != nil {
+		panic("Failed to record sign-in status")
+	}
+
+	// return a success response
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Sign-in recorded successfully",
+	})
+}
+
+// SignInCount 用于获取当前用户到当天为止的连续签到次数
+func SignInCount(c *gin.Context) {
+	defer func() {
+		if err := recover(); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err})
+		}
+	}()
+
+	// Get the user off the context
+	user, _ := c.Get("user")
+	userID := user.(models.User).ID
+
+	// call function getSignInCount
+	count, err := getSignInCount(userID)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// Return a success response with the count
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Sign-in count fetched successfully",
+		"count":   count,
+	})
+}
+
+// SignInAward 用于为当前用户发放本月连续签到奖励
+func SignInAward(c *gin.Context) {
+	defer func() {
+		if err := recover(); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err})
+		}
+	}()
+
+	// Get the user off the context
+	user, _ := c.Get("user")
+	userID := user.(models.User).ID
+
+	// Check if today is the last day of the month
+	currentYear, currentMonth, currentDay := time.Now().Date()
+	lastDayOfMonth := time.Date(currentYear, currentMonth+1, 0, 0, 0, 0, 0, time.UTC).Day()
+	fmt.Println("Current Day:", currentDay, "Last Day of Month:", lastDayOfMonth)
+	if currentDay != lastDayOfMonth {
+		panic("Sign-in rewards can only be claimed on the last day of the month")
+	}
+
+	// call function getSignInCount
+	count, err := getSignInCount(userID)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// Add the user's credits based on the sign-in count
+	// (1) count >= 28 -> 100 credits
+	// (2) count >= 15 -> 50 credits
+	// (3) 10 credits
+	award := 10 + 40*utils.BoolToUint(count >= 15) + 50*utils.BoolToUint(count >= 28)
+	result := initializers.DB.Model(&models.User{}).Where("id = ?", userID).Update("credits", gorm.Expr("credits + ?", award))
+	if result.Error != nil || result.RowsAffected == 0 {
+		panic("Failed to award sign-in credits")
+	}
+
+	// Return a success response with the award
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Sign-in award granted successfully",
+		"award":   award,
+	})
+}
+
+func getSignInCount(userID uint) (int, error) {
+	// Get the date
+	currentYear, currentMonth, currentDay := time.Now().Date()
+
+	// Using Redis Bitmap to get the sign-in records till today
+	// (1) Set the key
+	keyPrefix := utils.RedisConstants.SIGN_IN_KEY_PREFIX
+	keySuffix := fmt.Sprintf(":%d%02d", currentYear, currentMonth)
+	key := keyPrefix + strconv.Itoa(int(userID)) + keySuffix
+	// (2) Get the record
+	result, err := initializers.RDB.BitFieldRO(initializers.RDB_CTX, key, "u"+strconv.Itoa(currentDay), "0").Result()
+	if err != nil || len(result) != 1 {
+		return 0, errors.New("failed to get sign-in record")
+	}
+	record := uint32(result[0])
+
+	// Using Brian Kernighan's algorithm to count the continuous sign-in days
+	count := bits.Len32((^record & (record + 1)) - 1)
+	return count, nil
 }
 
 // FetchUsers retrieves all users' information.

@@ -33,3 +33,11 @@ func StrToUint(s string) uint {
 	}
 	return uint(result)
 }
+
+// BoolToUint converts a boolean to an unsigned integer, returning 1 for true and 0 for false.
+func BoolToUint(b bool) uint {
+	if b {
+		return 1
+	}
+	return 0
+}

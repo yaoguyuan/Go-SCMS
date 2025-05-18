@@ -7,8 +7,10 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
@@ -173,6 +175,27 @@ func FetchUserArticles(c *gin.Context) {
 		Offset(params.Offset).Limit(params.PageSize).Find(&articles)
 	if result.Error != nil {
 		panic("Failed to get the articles from the database")
+	}
+
+	// For each article
+	// (1) we need to check if the current user has liked or disliked it
+	// (2) we need to generate a top5 leaderboard for both likes and dislikes
+	for i := range articles {
+		// check if the current user has liked or disliked the article
+		articleID := articles[i]["id"].(uint)
+		key_liked := utils.RedisConstants.ARTICLE_LIKED_KEY_PREFIX + strconv.Itoa(int(articleID))
+		key_disliked := utils.RedisConstants.ARTICLE_DISLIKED_KEY_PREFIX + strconv.Itoa(int(articleID))
+		liked := initializers.RDB.ZScore(initializers.RDB_CTX, key_liked, strconv.Itoa(int(curUserID))).Err() == nil
+		disliked := initializers.RDB.ZScore(initializers.RDB_CTX, key_disliked, strconv.Itoa(int(curUserID))).Err() == nil
+		articles[i]["liked"] = liked
+		articles[i]["disliked"] = disliked
+
+		// generate a top5 leaderboard for likes and dislikes
+		var top5_likes, top5_dislikes []uint
+		initializers.RDB.ZRange(initializers.RDB_CTX, key_liked, 0, 4).ScanSlice(&top5_likes)
+		initializers.RDB.ZRange(initializers.RDB_CTX, key_disliked, 0, 4).ScanSlice(&top5_dislikes)
+		articles[i]["top5_likes"] = top5_likes
+		articles[i]["top5_dislikes"] = top5_dislikes
 	}
 
 	// We need to avoid K+1 select problem
@@ -389,6 +412,10 @@ func LikeArticle(c *gin.Context) {
 		}
 	}()
 
+	// Get the userID off the context
+	user, _ := c.Get("user")
+	userID := user.(models.User).ID
+
 	// Get the article ID and like code off the request
 	var body struct {
 		ID       uint `json:"id" binding:"required"`
@@ -401,14 +428,14 @@ func LikeArticle(c *gin.Context) {
 	// Update the article in the database
 	switch body.LikeCode {
 	case models.Like:
-		result := initializers.DB.Model(&models.Article{}).Where("id = ?", body.ID).Update("likes", gorm.Expr("likes + 1"))
-		if result.Error != nil || result.RowsAffected == 0 {
-			panic("Failed to like the article")
+		err := likeArticle(userID, body.ID)
+		if err != nil {
+			panic(err.Error())
 		}
 	case models.Dislike:
-		result := initializers.DB.Model(&models.Article{}).Where("id = ?", body.ID).Update("dislikes", gorm.Expr("dislikes + 1"))
-		if result.Error != nil || result.RowsAffected == 0 {
-			panic("Failed to dislike the article")
+		err := dislikeArticle(userID, body.ID)
+		if err != nil {
+			panic(err.Error())
 		}
 	default:
 		panic("Invalid like code: Must be either Like(1) or Dislike(2)")
@@ -418,6 +445,70 @@ func LikeArticle(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Article liked/disliked successfully",
 	})
+}
+
+func likeArticle(userID, articleID uint) error {
+	// Check if the user has already liked the article in Redis Sorted Set
+	key := utils.RedisConstants.ARTICLE_LIKED_KEY_PREFIX + strconv.Itoa(int(articleID))
+	err := initializers.RDB.ZScore(initializers.RDB_CTX, key, strconv.Itoa(int(userID))).Err()
+	if err == redis.Nil {
+		// If not, add the user to the Redis Sorted Set and increment the likes in the database
+		// Before doing that, we need to check if the user has already disliked the article
+		tmp_key := utils.RedisConstants.ARTICLE_DISLIKED_KEY_PREFIX + strconv.Itoa(int(articleID))
+		if initializers.RDB.ZScore(initializers.RDB_CTX, tmp_key, strconv.Itoa(int(userID))).Err() == nil {
+			return errors.New("already disliked the article, please cancel the dislike first")
+		}
+		result := initializers.DB.Model(&models.Article{}).Where("id = ?", articleID).Update("likes", gorm.Expr("likes + 1"))
+		if result.Error != nil {
+			return errors.New("failed to like the article")
+		}
+		initializers.RDB.ZAdd(initializers.RDB_CTX, key, redis.Z{
+			Score:  float64(time.Now().Unix()),
+			Member: strconv.Itoa(int(userID)),
+		})
+	} else if err == nil {
+		// If so, remove the user from the Redis Sorted Set and decrement the likes in the database
+		result := initializers.DB.Model(&models.Article{}).Where("id = ?", articleID).Update("likes", gorm.Expr("likes - 1"))
+		if result.Error != nil {
+			return errors.New("failed to cancel like the article")
+		}
+		initializers.RDB.ZRem(initializers.RDB_CTX, key, strconv.Itoa(int(userID)))
+	} else {
+		return errors.New("internal redis error: " + err.Error())
+	}
+	return nil
+}
+
+func dislikeArticle(userID, articleID uint) error {
+	// Check if the user has already disliked the article in Redis Sorted Set
+	key := utils.RedisConstants.ARTICLE_DISLIKED_KEY_PREFIX + strconv.Itoa(int(articleID))
+	err := initializers.RDB.ZScore(initializers.RDB_CTX, key, strconv.Itoa(int(userID))).Err()
+	if err == redis.Nil {
+		// If not, add the user to the Redis Sorted Set and increment the dislikes in the database
+		// Before doing that, we need to check if the user has already liked the article
+		tmp_key := utils.RedisConstants.ARTICLE_LIKED_KEY_PREFIX + strconv.Itoa(int(articleID))
+		if initializers.RDB.ZScore(initializers.RDB_CTX, tmp_key, strconv.Itoa(int(userID))).Err() == nil {
+			return errors.New("already liked the article, please cancel the like first")
+		}
+		result := initializers.DB.Model(&models.Article{}).Where("id = ?", articleID).Update("dislikes", gorm.Expr("dislikes + 1"))
+		if result.Error != nil {
+			return errors.New("failed to dislike the article")
+		}
+		initializers.RDB.ZAdd(initializers.RDB_CTX, key, redis.Z{
+			Score:  float64(time.Now().Unix()),
+			Member: strconv.Itoa(int(userID)),
+		})
+	} else if err == nil {
+		// If so, remove the user from the Redis Sorted Set and decrement the dislikes in the database
+		result := initializers.DB.Model(&models.Article{}).Where("id = ?", articleID).Update("dislikes", gorm.Expr("dislikes - 1"))
+		if result.Error != nil {
+			return errors.New("failed to cancel dislike the article")
+		}
+		initializers.RDB.ZRem(initializers.RDB_CTX, key, strconv.Itoa(int(userID)))
+	} else {
+		return errors.New("internal redis error: " + err.Error())
+	}
+	return nil
 }
 
 // PostComment posts a comment on an article.

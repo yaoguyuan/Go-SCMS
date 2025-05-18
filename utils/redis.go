@@ -11,29 +11,31 @@ import (
 
 // RedisConstants contains constants for Redis keys and expiration times.
 var RedisConstants = struct {
-	LOGIN_CODE_KEY_PREFIX  string
-	LOGIN_CODE_EXPIRE_TIME time.Duration
-	CACHE_USER_KEY_PREFIX  string
-	CACHE_USER_EXPIRE_TIME time.Duration
-	CACHE_NULL_EXPIRE_TIME time.Duration
-	MUTEX_USER_KEY_PREFIX  string
-	MUTEX_USER_EXPIRE_TIME time.Duration
-	// LOCK_ORDER_KEY_PREFIX    string
-	// LOCK_ORDER_EXPIRE_TIME   time.Duration
-	SECKILL_STOCK_KEY_PREFIX string
-	SECKILL_ORDER_KEY_PREFIX string
+	LOGIN_CODE_KEY_PREFIX       string
+	LOGIN_CODE_EXPIRE_TIME      time.Duration
+	CACHE_USER_KEY_PREFIX       string
+	CACHE_USER_EXPIRE_TIME      time.Duration
+	CACHE_NULL_EXPIRE_TIME      time.Duration
+	MUTEX_USER_KEY_PREFIX       string
+	MUTEX_USER_EXPIRE_TIME      time.Duration
+	SECKILL_STOCK_KEY_PREFIX    string
+	SECKILL_ORDER_KEY_PREFIX    string
+	ARTICLE_LIKED_KEY_PREFIX    string
+	ARTICLE_DISLIKED_KEY_PREFIX string
+	SIGN_IN_KEY_PREFIX          string
 }{
-	LOGIN_CODE_KEY_PREFIX:  "login:code:",
-	LOGIN_CODE_EXPIRE_TIME: 5 * time.Minute,
-	CACHE_USER_KEY_PREFIX:  "cache:user:",
-	CACHE_USER_EXPIRE_TIME: 30 * time.Minute,
-	CACHE_NULL_EXPIRE_TIME: 2 * time.Minute,
-	MUTEX_USER_KEY_PREFIX:  "mutex:user:",
-	MUTEX_USER_EXPIRE_TIME: 1 * time.Second,
-	// LOCK_ORDER_KEY_PREFIX:    "lock:order:",
-	// LOCK_ORDER_EXPIRE_TIME:   5 * time.Second,
-	SECKILL_STOCK_KEY_PREFIX: "seckill:stock:",
-	SECKILL_ORDER_KEY_PREFIX: "seckill:order:",
+	LOGIN_CODE_KEY_PREFIX:       "login:code:",
+	LOGIN_CODE_EXPIRE_TIME:      5 * time.Minute,
+	CACHE_USER_KEY_PREFIX:       "cache:user:",
+	CACHE_USER_EXPIRE_TIME:      30 * time.Minute,
+	CACHE_NULL_EXPIRE_TIME:      2 * time.Minute,
+	MUTEX_USER_KEY_PREFIX:       "mutex:user:",
+	MUTEX_USER_EXPIRE_TIME:      1 * time.Second,
+	SECKILL_STOCK_KEY_PREFIX:    "seckill:stock:",
+	SECKILL_ORDER_KEY_PREFIX:    "seckill:order:",
+	ARTICLE_LIKED_KEY_PREFIX:    "article:liked:",
+	ARTICLE_DISLIKED_KEY_PREFIX: "article:disliked:",
+	SIGN_IN_KEY_PREFIX:          "sign_in:",
 }
 
 // SeckillScript is a Lua script used for atomic seckill operations in Redis
